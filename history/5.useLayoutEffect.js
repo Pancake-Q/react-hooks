@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
@@ -7,7 +6,17 @@ import ReactDOM from 'react-dom/client';
 let hookStates = []; // 保存所有状态的数组
 let hookIndex = 0; // 默认 从第一个开始保存状态
 
-
+function useState(initialState) {
+  // 将当前的状态保存到数组中  1 ： 1
+  hookStates[hookIndex] = hookStates[hookIndex] || initialState
+  // 这里应该将hookIndex 先进行保留 ，保证setState时拿到的是自己的索引
+  let currentIndex = hookIndex;
+  function setState(newState) {
+    hookStates[currentIndex] = newState;
+    render();
+  }
+  return [hookStates[hookIndex++], setState]
+}
 function useMemo(factory, dependencies) {
   if (hookStates[hookIndex]) { // // { age }    [age]
     // 缓存过对象了
@@ -106,69 +115,47 @@ function useRef(initialState) {
   hookStates[hookIndex] = hookStates[hookIndex] || { current: initialState };
   return hookStates[hookIndex++]
 }
-function useState(initialState) {
-  return useReducer(null, initialState)
-}
-function useReducer(reducer, initialState) {
-  hookStates[hookIndex] = hookStates[hookIndex] || initialState;
-  let currentIndex = hookIndex;
-  function dispatch(action) {
-    // 这里只是基于了一个函数 来实现了状态初始化
-    hookStates[currentIndex] = reducer ? reducer(hookStates[currentIndex], action) : action
-    render();
-  }
-  return [hookStates[hookIndex++], dispatch]
-}
-function useContext(context) { // 内部使用Provider的时候 会将提供的数据 挂在到ConuterContext 上
-  return context._currentValue
-}
-// Provider Consumer 提供数据的  消费数据的
-
-function useImperativeHandle(ref, handle) {
-  ref.current = handle(); // 将函数执行后的结果赋予到current上
-}
-const ConuterContext = React.createContext();// 创建一个上下文组件
+// useEffect 解决的问题是什么？  在函数式组件中 不能绑定事件， 操作dom，定时器。。。。 副作用
+// 有一个入口 可以进入到函数式编程中
+// useEffect componentDidMount  componentDidUpdate  componentWillUpdate
 
 
-//  父组件 想拿到子组建的dom元素 
-// 类组件中可以通过ref拿到组件的实例，但是函数式组件是没有实力的
-
-function Child(props, inputRef) {
-
-  // 可以将组件到处的变量数据 都放在里面
-  useImperativeHandle(inputRef, () => ({
-    focus() {
-      console.log('ok')
-    },
-    blur() {
-      console.log('blur')
-    }
-  }))
-  return <input type="text" ></input>
-}
-
-const ForwardChild = React.forwardRef(Child)
-function App() {
-  const inputRef = useRef();
-
-  function getFoucus() {
-    console.log(inputRef.current)
-    // inputRef.current.focus()
-  }
-  return <div>
-
-    <ForwardChild ref={inputRef}></ForwardChild>
-    <button onClick={getFoucus}>获取焦点</button>
-
-  </div>
-}
-
-
-
-
-
+// useEffect (宏任务执行) 和 useLayoutEffect(微任务执行)
+// useRef
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
+
+
+function App() {
+  let box1 = useRef()
+  let box2 = useRef();
+
+  const style = { width: '100px', height: '100px' }
+
+  useEffect(() => { // 宏任务
+    box1.current.style.transform = 'translate(300px)'; // 0-300 动画
+    box1.current.style.transition = 'all .5s'
+  }, []); // 默认刚才咱们写的时候会立刻执行 此函数
+  useLayoutEffect(() => { // 微任务
+    box2.current.style.transform = 'translate(300px)'; // 300-300
+    box2.current.style.transition = 'all .5s'
+  }, [])
+  // 渲染时机问题 正常渲染 先走宏任务(script)   [setTimeout]   [promise]
+  // 会先清空微任务 , 再去看是否页面达到了渲染时机，如果达到了渲染时机会进行页面渲染，再去执行下一个宏任务
+  return (
+    <div>
+      <div ref={box1} style={{ ...style, background: 'yellow' }}></div>
+      <div ref={box2} style={{ ...style, background: 'green' }}></div>
+
+    </div>
+  )
+}
+
+
+
+
+
 function render() {
   hookIndex = 0; // 保证每次渲染的时候 都是从0的开始 进行匹配获取状态
   root.render(
